@@ -1005,3 +1005,54 @@ end)
 -- INIT
 updatePlayerList()
 updateCombinedList()
+
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local DestroyBtn = Instance.new("TextButton")
+local ToggleBtn = Instance.new("TextButton")
+
+-- การตั้งค่า UI
+ScreenGui.Name = "ControlPanel"
+ScreenGui.Parent = game:GetService("CoreGui") -- หรือ game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+MainFrame.Size = UDim2.new(0, 200, 0, 150)
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -75)
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.Parent = ScreenGui
+
+-- ทำให้ UI ลากได้
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+-- ปุ่ม Destroy UI & Script
+DestroyBtn.Text = "Destroy UI"
+DestroyBtn.Size = UDim2.new(0, 180, 0, 40)
+DestroyBtn.Position = UDim2.new(0, 10, 0, 10)
+DestroyBtn.Parent = MainFrame
+DestroyBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy() -- ลบ UI
+    script:Destroy()    -- ลบ Script (ถ้ามี)
+end)
+
+-- ปุ่ม Auto Block (Toggle)
+local isAutoEnabled = false
+ToggleBtn.Text = "Auto Block: OFF"
+ToggleBtn.Size = UDim2.new(0, 180, 0, 40)
+ToggleBtn.Position = UDim2.new(0, 10, 0, 60)
+ToggleBtn.Parent = MainFrame
+
+local function fireWarp(state)
+    local args = {
+        buffer.fromstring("\024"),
+        buffer.fromstring("\254\002\000\006\001F\005" .. (state and "\001" or "\000"))
+    }
+    game:GetService("ReplicatedStorage"):WaitForChild("ABC - First Priority"):WaitForChild("Utility"):WaitForChild("Modules"):WaitForChild("Warp"):WaitForChild("Index"):WaitForChild("Event"):WaitForChild("Reliable"):FireServer(unpack(args))
+end
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    isAutoEnabled = not isAutoEnabled
+    ToggleBtn.Text = "Auto Block: " .. (isAutoEnabled and "ON" or "OFF")
+    
+    -- เรียกใช้ฟังก์ชันตามสถานะ
+    fireWarp(isAutoEnabled)
+end)
