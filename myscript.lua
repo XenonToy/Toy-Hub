@@ -1,5 +1,6 @@
 -- [[ UI COMBINED TAB WITH SUB-TABS & PROXIMITY PROMPT (PRESS E LONG) SYSTEM ]] --
 -- [[ + FARM ALL MOBS TAB WITH INDIVIDUAL MOB SELECTION ]] --
+-- [[ + ANTI-AFK + MINIMIZE WITH K ]] --
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -7,6 +8,8 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
 local localPlayer = Players.LocalPlayer
 
 local MapFolder = Workspace:WaitForChild("Map", 5)
@@ -18,9 +21,10 @@ _G.AutoFarmQuest = false
 _G.AutoFarmMobs = false
 _G.FarmPosition = "Behind"
 _G.FarmMobPosition = "Behind"
-_G.SelectedMobs = {} -- เก็บชื่อ mob ที่เลือก
+_G.SelectedMobs = {}
 
 local currentSubTab = "NPCs"
+local isMinimized = false
 
 local oldUI = CoreGui:FindFirstChild("TeleportMenuGUI") or localPlayer:WaitForChild("PlayerGui"):FindFirstChild("TeleportMenuGUI")
 if oldUI then oldUI:Destroy() end
@@ -31,7 +35,24 @@ ScreenGui.ResetOnSpawn = false
 pcall(function() ScreenGui.Parent = CoreGui end)
 if not ScreenGui.Parent then ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui") end
 
--- Main Frame (กว้างขึ้นนิดนึงเพราะมี 4 แท็บ)
+-- ============================================================
+-- MINIMIZE BUTTON (sempre visibile)
+-- ============================================================
+local MinimizeHint = Instance.new("TextLabel")
+MinimizeHint.Name = "MinimizeHint"
+MinimizeHint.Size = UDim2.new(0, 120, 0, 22)
+MinimizeHint.Position = UDim2.new(0.5, -160, 0.4, -215)
+MinimizeHint.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MinimizeHint.Text = "  [K] Minimize UI"
+MinimizeHint.TextColor3 = Color3.fromRGB(150, 150, 150)
+MinimizeHint.TextSize = 11
+MinimizeHint.Font = Enum.Font.SourceSans
+MinimizeHint.TextXAlignment = Enum.TextXAlignment.Left
+MinimizeHint.BorderSizePixel = 0
+MinimizeHint.Parent = ScreenGui
+Instance.new("UICorner", MinimizeHint).CornerRadius = UDim.new(0, 4)
+
+-- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 320, 0, 380)
@@ -80,12 +101,9 @@ DestroyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 DestroyBtn.TextSize = 14
 DestroyBtn.Font = Enum.Font.SourceSansBold
 DestroyBtn.Parent = TopBar
+Instance.new("UICorner", DestroyBtn).CornerRadius = UDim.new(0, 5)
 
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 5)
-BtnCorner.Parent = DestroyBtn
-
--- TAB BAR (4 แท็บ)
+-- TAB BAR
 local TabBar = Instance.new("Frame")
 TabBar.Name = "TabBar"
 TabBar.Size = UDim2.new(1, 0, 0, 30)
@@ -129,7 +147,6 @@ QuestTabBtn.TextSize = 10
 QuestTabBtn.BorderSizePixel = 0
 QuestTabBtn.Parent = TabBar
 
--- แท็บ Farm ใหม่
 local FarmTabBtn = Instance.new("TextButton")
 FarmTabBtn.Name = "FarmTabBtn"
 FarmTabBtn.Size = UDim2.new(0.25, 0, 1, 0)
@@ -291,7 +308,7 @@ ToggleFarmBtn.Parent = QuestPage
 Instance.new("UICorner", ToggleFarmBtn).CornerRadius = UDim.new(0, 6)
 
 -- ============================================================
--- PAGE: Farm All Mobs (ใหม่)
+-- PAGE: Farm All Mobs
 -- ============================================================
 local FarmPage = Instance.new("Frame")
 FarmPage.Name = "FarmPage"
@@ -301,7 +318,6 @@ FarmPage.BackgroundTransparency = 1
 FarmPage.Visible = false
 FarmPage.Parent = MainFrame
 
--- ส่วนหัว + ปุ่ม Select All / Clear All
 local FarmTopRow = Instance.new("Frame")
 FarmTopRow.Size = UDim2.new(1, 0, 0, 28)
 FarmTopRow.Position = UDim2.new(0, 0, 0, 0)
@@ -331,7 +347,6 @@ ClearAllBtn.BorderSizePixel = 0
 ClearAllBtn.Parent = FarmTopRow
 Instance.new("UICorner", ClearAllBtn).CornerRadius = UDim.new(0, 4)
 
--- ตำแหน่งฟาร์ม mob
 local FarmPosRow = Instance.new("Frame")
 FarmPosRow.Size = UDim2.new(1, 0, 0, 28)
 FarmPosRow.Position = UDim2.new(0, 0, 0, 32)
@@ -361,7 +376,6 @@ FarmAboveBtn.BorderSizePixel = 0
 FarmAboveBtn.Parent = FarmPosRow
 Instance.new("UICorner", FarmAboveBtn).CornerRadius = UDim.new(0, 4)
 
--- Search bar
 local FarmSearch = Instance.new("TextBox")
 FarmSearch.Size = UDim2.new(1, 0, 0, 24)
 FarmSearch.Position = UDim2.new(0, 0, 0, 64)
@@ -376,9 +390,10 @@ FarmSearch.Font = Enum.Font.SourceSans
 FarmSearch.Parent = FarmPage
 Instance.new("UICorner", FarmSearch).CornerRadius = UDim.new(0, 4)
 
--- Mob list (scroll)
+-- Mob list scroll
+-- Ridotto per fare spazio ai bottoni sotto (Anti-AFK + Start)
 local FarmScroll = Instance.new("ScrollingFrame")
-FarmScroll.Size = UDim2.new(1, 0, 1, -130)
+FarmScroll.Size = UDim2.new(1, 0, 1, -168)
 FarmScroll.Position = UDim2.new(0, 0, 0, 92)
 FarmScroll.BackgroundTransparency = 1
 FarmScroll.BorderSizePixel = 0
@@ -390,10 +405,10 @@ local FarmLayout = Instance.new("UIListLayout")
 FarmLayout.Parent = FarmScroll
 FarmLayout.Padding = UDim.new(0, 4)
 
--- Toggle farm button (ด้านล่างสุด)
+-- Toggle Farm Mob (sopra anti-afk)
 local ToggleMobFarmBtn = Instance.new("TextButton")
 ToggleMobFarmBtn.Size = UDim2.new(1, 0, 0, 34)
-ToggleMobFarmBtn.Position = UDim2.new(0, 0, 1, -34)
+ToggleMobFarmBtn.Position = UDim2.new(0, 0, 1, -110)
 ToggleMobFarmBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
 ToggleMobFarmBtn.Text = "🔴 START FARM SELECTED MOBS"
 ToggleMobFarmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -401,6 +416,64 @@ ToggleMobFarmBtn.Font = Enum.Font.SourceSansBold
 ToggleMobFarmBtn.TextSize = 12
 ToggleMobFarmBtn.Parent = FarmPage
 Instance.new("UICorner", ToggleMobFarmBtn).CornerRadius = UDim.new(0, 6)
+
+-- Anti-AFK Toggle
+local AntiAfkBtn = Instance.new("TextButton")
+AntiAfkBtn.Name = "AntiAfkBtn"
+AntiAfkBtn.Parent = FarmPage
+AntiAfkBtn.Size = UDim2.new(1, 0, 0, 30)
+AntiAfkBtn.Position = UDim2.new(0, 0, 1, -74)
+AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+AntiAfkBtn.Text = "🛡️ Anti-AFK: OFF"
+AntiAfkBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+AntiAfkBtn.Font = Enum.Font.SourceSansBold
+AntiAfkBtn.TextSize = 12
+Instance.new("UICorner", AntiAfkBtn).CornerRadius = UDim.new(0, 6)
+
+-- 2. "วางโค้ด Auto Block ชุดนี้ ต่อท้ายทันทีหลังจากจบ AntiAfkBtn"
+local AutoBlockBtn = Instance.new("TextButton")
+AutoBlockBtn.Name = "AutoBlockBtn"
+AutoBlockBtn.Size = UDim2.new(1, 0, 0, 30)
+AutoBlockBtn.Position = UDim2.new(0, 0, 1, -38)
+AutoBlockBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+AutoBlockBtn.Text = "🛡️ Auto Block: OFF"
+AutoBlockBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+AutoBlockBtn.Font = Enum.Font.SourceSansBold
+AutoBlockBtn.TextSize = 12
+AutoBlockBtn.Parent = FarmPage
+Instance.new("UICorner", AutoBlockBtn).CornerRadius = UDim.new(0, 6)
+
+-- 3. Logic สำหรับ Auto Block (วางไว้หลังสร้างปุ่ม)
+local isAutoBlockEnabled = false
+local function fireWarp(state)
+    local remote
+    pcall(function()
+        remote = game:GetService("ReplicatedStorage")
+            :WaitForChild("ABC - First Priority")
+            :WaitForChild("Utility")
+            :WaitForChild("Modules")
+            :WaitForChild("Warp")
+            :WaitForChild("Index")
+            :WaitForChild("Event")
+            :WaitForChild("Reliable")
+    end)
+    
+    if remote then
+        local args = {
+            buffer.fromstring("\024"),
+            buffer.fromstring("\254\002\000\006\001F\005" .. (state and "\001" or "\000"))
+        }
+        remote:FireServer(unpack(args))
+    end
+end
+
+AutoBlockBtn.MouseButton1Click:Connect(function()
+    isAutoBlockEnabled = not isAutoBlockEnabled
+    AutoBlockBtn.Text = "🛡️ Auto Block: " .. (isAutoBlockEnabled and "ON" or "OFF")
+    AutoBlockBtn.BackgroundColor3 = isAutoBlockEnabled and Color3.fromRGB(70, 100, 70) or Color3.fromRGB(60, 60, 70)
+    fireWarp(isAutoBlockEnabled)
+end)
+
 
 -- ============================================================
 -- AUTO CANVAS
@@ -416,12 +489,103 @@ FarmLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 -- ============================================================
--- FARM MOB LIST: สร้าง row ให้กดเลือก mob แต่ละตัว
+-- ANTI-AFK SYSTEM
 -- ============================================================
-local mobCheckboxMap = {} -- [mobName] = { frame, label, checkbox }
+local antiAfkEnabled = false
+local antiAfkConnection = nil
+
+local function setAntiAfk(state)
+    antiAfkEnabled = state
+    if state then
+        AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 50)
+        AntiAfkBtn.TextColor3 = Color3.fromRGB(200, 255, 200)
+        AntiAfkBtn.Text = "🛡️ Anti-AFK: ON"
+        antiAfkConnection = localPlayer.Idled:Connect(function()
+            VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+        end)
+    else
+        AntiAfkBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        AntiAfkBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+        AntiAfkBtn.Text = "🛡️ Anti-AFK: OFF"
+        if antiAfkConnection then
+            antiAfkConnection:Disconnect()
+            antiAfkConnection = nil
+        end
+    end
+end
+
+AntiAfkBtn.MouseButton1Click:Connect(function()
+    setAntiAfk(not antiAfkEnabled)
+end)
+
+-- ============================================================
+-- MINIMIZE WITH K
+-- ============================================================
+local function setMinimized(state)
+    isMinimized = state
+    if state then
+        -- Nasconde tutto tranne la TopBar (35px) + TabBar (30px) = 65px
+        MainFrame:TweenSize(
+            UDim2.new(0, 320, 0, 65),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.2,
+            true
+        )
+        -- Nasconde il contenuto
+        PlayersPage.Visible = false
+        CombinedPage.Visible = false
+        QuestPage.Visible = false
+        FarmPage.Visible = false
+        TabBar.Visible = false
+        Title.Text = "Toy Hub  [minimized - K to expand]"
+        Title.TextSize = 11
+    else
+        MainFrame:TweenSize(
+            UDim2.new(0, 320, 0, 380),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.2,
+            true,
+            function()
+                TabBar.Visible = true
+                -- Ripristina la pagina attiva
+                local activeHome = HomeTabBtn.BackgroundColor3 == Color3.fromRGB(50, 50, 60)
+                local activeCombined = CombinedTabBtn.BackgroundColor3 == Color3.fromRGB(50, 50, 60)
+                local activeQuest = QuestTabBtn.BackgroundColor3 == Color3.fromRGB(50, 50, 60)
+                local activeFarm = FarmTabBtn.TextColor3 == Color3.fromRGB(255, 200, 100)
+
+                if activeFarm then
+                    FarmPage.Visible = true
+                elseif activeQuest then
+                    QuestPage.Visible = true
+                elseif activeCombined then
+                    CombinedPage.Visible = true
+                else
+                    PlayersPage.Visible = true
+                end
+            end
+        )
+        Title.Text = "Toy Hub"
+        Title.TextSize = 14
+    end
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.K then
+        setMinimized(not isMinimized)
+    end
+end)
+
+-- ============================================================
+-- FARM MOB LIST
+-- ============================================================
+local mobCheckboxMap = {}
 
 local function buildFarmMobList()
-    -- เคลียร์ของเก่า
     for _, child in ipairs(FarmScroll:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
     end
@@ -429,7 +593,6 @@ local function buildFarmMobList()
 
     if not LivingFolder then return end
 
-    -- รวบ unique mob name
     local seen = {}
     local searchText = string.lower(FarmSearch.Text)
 
@@ -447,7 +610,6 @@ local function buildFarmMobList()
                     Row.Parent = FarmScroll
                     Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 4)
 
-                    -- Checkbox button (ซ้าย)
                     local CheckBtn = Instance.new("TextButton")
                     CheckBtn.Size = UDim2.new(0, 28, 0, 28)
                     CheckBtn.Position = UDim2.new(0, 1, 0, 1)
@@ -460,7 +622,6 @@ local function buildFarmMobList()
                     CheckBtn.Parent = Row
                     Instance.new("UICorner", CheckBtn).CornerRadius = UDim.new(0, 4)
 
-                    -- Mob name label
                     local NameLabel = Instance.new("TextLabel")
                     NameLabel.Size = UDim2.new(1, -70, 1, 0)
                     NameLabel.Position = UDim2.new(0, 34, 0, 0)
@@ -472,7 +633,6 @@ local function buildFarmMobList()
                     NameLabel.TextXAlignment = Enum.TextXAlignment.Left
                     NameLabel.Parent = Row
 
-                    -- HP label (ขวา)
                     local HpLabel = Instance.new("TextLabel")
                     HpLabel.Size = UDim2.new(0, 60, 1, 0)
                     HpLabel.Position = UDim2.new(1, -62, 0, 0)
@@ -483,7 +643,6 @@ local function buildFarmMobList()
                     HpLabel.TextXAlignment = Enum.TextXAlignment.Right
                     HpLabel.Parent = Row
 
-                    -- อัพเดต HP แบบ live
                     local function updateHp()
                         local found = LivingFolder:FindFirstChild(name)
                         if found then
@@ -503,7 +662,6 @@ local function buildFarmMobList()
 
                     mobCheckboxMap[name] = {Row = Row, Check = CheckBtn, Label = NameLabel}
 
-                    -- Toggle selection
                     local function toggleSelect()
                         _G.SelectedMobs[name] = not _G.SelectedMobs[name]
                         if _G.SelectedMobs[name] then
@@ -531,7 +689,6 @@ local function buildFarmMobList()
     end
 end
 
--- Select All / Clear All
 SelectAllBtn.MouseButton1Click:Connect(function()
     if LivingFolder then
         for _, mob in ipairs(LivingFolder:GetChildren()) do
@@ -550,7 +707,6 @@ end)
 
 FarmSearch:GetPropertyChangedSignal("Text"):Connect(buildFarmMobList)
 
--- ตำแหน่งฟาร์ม mob
 FarmBehindBtn.MouseButton1Click:Connect(function()
     _G.FarmMobPosition = "Behind"
     FarmBehindBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 110)
@@ -571,7 +727,6 @@ FarmAboveBtn.MouseButton1Click:Connect(function()
     FarmBehindBtn.Text = "ข้างหลัง"
 end)
 
--- Toggle Farm Mob
 ToggleMobFarmBtn.MouseButton1Click:Connect(function()
     _G.AutoFarmMobs = not _G.AutoFarmMobs
     if _G.AutoFarmMobs then
@@ -584,7 +739,7 @@ ToggleMobFarmBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- AUTO FARM MOBS LOOP (ใหม่ - วนฆ่าทุก mob ที่เลือกทีละตัว)
+-- AUTO FARM MOBS LOOP
 -- ============================================================
 task.spawn(function()
     while task.wait(0.05) do
@@ -593,7 +748,6 @@ task.spawn(function()
             local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
             if not myRoot or not LivingFolder then continue end
 
-            -- รวบ remote ไว้ก่อน
             local remote
             pcall(function()
                 remote = game:GetService("ReplicatedStorage")
@@ -607,7 +761,6 @@ task.spawn(function()
             end)
             if not remote then continue end
 
-            -- วนผ่านทุก mob ใน Living ที่ถูกเลือก
             for _, mob in ipairs(LivingFolder:GetChildren()) do
                 if not _G.AutoFarmMobs then break end
                 if not (mob:IsA("Model") and _G.SelectedMobs[mob.Name]) then continue end
@@ -616,14 +769,12 @@ task.spawn(function()
                 local mobHp = mob:FindFirstChildOfClass("Humanoid")
                 if not mobRoot or not mobHp or mobHp.Health <= 0 then continue end
 
-                -- วาร์ปไปหา mob
                 if _G.FarmMobPosition == "Above" then
                     myRoot.CFrame = mobRoot.CFrame * CFrame.new(0, 3.5, 0)
                 else
                     myRoot.CFrame = mobRoot.CFrame * CFrame.new(0, 0, 3)
                 end
 
-                -- โจมตี LMB + E + R
                 pcall(function()
                     remote:FireServer(
                         buffer.fromstring("\024"),
@@ -653,7 +804,7 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- QUEST FARM SYSTEM (เดิม)
+-- QUEST FARM SYSTEM
 -- ============================================================
 BehindBtn.MouseButton1Click:Connect(function()
     _G.FarmPosition = "Behind"
@@ -998,61 +1149,11 @@ end
 -- DESTROY
 DestroyBtn.MouseButton1Click:Connect(function()
     _G.AutoFarmQuest = false
-    _G.AutoFaruMobs = false
+    _G.AutoFarmMobs = false
+    if antiAfkConnection then antiAfkConnection:Disconnect() end
     ScreenGui:Destroy()
 end)
 
 -- INIT
 updatePlayerList()
 updateCombinedList()
-
-local ScreenGui = Instance.new("ScreenGui")
-local MainFrame = Instance.new("Frame")
-local DestroyBtn = Instance.new("TextButton")
-local ToggleBtn = Instance.new("TextButton")
-
--- การตั้งค่า UI
-ScreenGui.Name = "ControlPanel"
-ScreenGui.Parent = game:GetService("CoreGui") -- หรือ game.Players.LocalPlayer:WaitForChild("PlayerGui")
-
-MainFrame.Size = UDim2.new(0, 200, 0, 150)
-MainFrame.Position = UDim2.new(0.5, -100, 0.5, -75)
-MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-MainFrame.Parent = ScreenGui
-
--- ทำให้ UI ลากได้
-MainFrame.Active = true
-MainFrame.Draggable = true
-
--- ปุ่ม Destroy UI & Script
-DestroyBtn.Text = "Destroy UI"
-DestroyBtn.Size = UDim2.new(0, 180, 0, 40)
-DestroyBtn.Position = UDim2.new(0, 10, 0, 10)
-DestroyBtn.Parent = MainFrame
-DestroyBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy() -- ลบ UI
-    script:Destroy()    -- ลบ Script (ถ้ามี)
-end)
-
--- ปุ่ม Auto Block (Toggle)
-local isAutoEnabled = false
-ToggleBtn.Text = "Auto Block: OFF"
-ToggleBtn.Size = UDim2.new(0, 180, 0, 40)
-ToggleBtn.Position = UDim2.new(0, 10, 0, 60)
-ToggleBtn.Parent = MainFrame
-
-local function fireWarp(state)
-    local args = {
-        buffer.fromstring("\024"),
-        buffer.fromstring("\254\002\000\006\001F\005" .. (state and "\001" or "\000"))
-    }
-    game:GetService("ReplicatedStorage"):WaitForChild("ABC - First Priority"):WaitForChild("Utility"):WaitForChild("Modules"):WaitForChild("Warp"):WaitForChild("Index"):WaitForChild("Event"):WaitForChild("Reliable"):FireServer(unpack(args))
-end
-
-ToggleBtn.MouseButton1Click:Connect(function()
-    isAutoEnabled = not isAutoEnabled
-    ToggleBtn.Text = "Auto Block: " .. (isAutoEnabled and "ON" or "OFF")
-    
-    -- เรียกใช้ฟังก์ชันตามสถานะ
-    fireWarp(isAutoEnabled)
-end)
